@@ -4,63 +4,71 @@
 <meta charset="UTF-8">
 <title>Interactive Region Map</title>
 <style>
-  *, box-sizing: border-box;
+  * { box-sizing:border-box; }
   body { margin:0; background:#ddd; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; padding:16px; gap:12px; }
 
-  /* ── toolbar ── */
+  /* toolbar */
   #toolbar { display:flex; align-items:center; gap:10px; background:white; padding:8px 14px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.2); font-size:13px; color:#444; flex-wrap:wrap; }
   #colorPicker { width:36px; height:28px; border:none; cursor:pointer; padding:0; border-radius:4px; }
-  #info { color:#888; min-width:130px; }
+  #info { color:#888; min-width:120px; }
   button { padding:4px 10px; border:1px solid #ccc; border-radius:5px; background:white; cursor:pointer; font-size:12px; }
   button:hover { background:#eee; }
+  #shareBtn { background:#2ecc71; color:white; border-color:#27ae60; font-weight:600; }
+  #shareBtn:hover { background:#27ae60; }
+  #shareBtn.copied { background:#3498db; border-color:#2980b9; }
   #swatches { display:flex; gap:4px; }
   .sw { width:22px; height:22px; border-radius:4px; cursor:pointer; border:2px solid transparent; }
   .sw:hover { border-color:#333; }
+  #viewBanner { display:none; background:#f39c12; color:white; font-size:12px; font-weight:600; padding:6px 14px; border-radius:8px; }
 
-  /* ── main layout ── */
-  #main { display:flex; gap:16px; align-items:flex-start; }
+  /* Faction Legend */
+  #faction-legend { background:white; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.15); padding:16px 20px; max-width:740px; width:100%; }
+  #faction-legend h2 { margin:0 0 12px; font-size:11px; font-weight:700; color:#999; text-transform:uppercase; letter-spacing:.1em; border-bottom:1px solid #eee; padding-bottom:8px; }
+  #faction-cards { display:flex; flex-wrap:wrap; gap:8px; }
+  .faction-card { display:flex; align-items:stretch; gap:0; border-radius:8px; border:1px solid rgba(0,0,0,.08); overflow:hidden; min-width:160px; flex:1; max-width:240px; transition:transform .1s, box-shadow .1s; }
+  .faction-card:hover { transform:translateY(-1px); box-shadow:0 3px 10px rgba(0,0,0,.1); }
+  .faction-stripe { width:6px; flex-shrink:0; }
+  .fc-body { padding:8px 12px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .fc-faction { font-size:14px; font-weight:700; color:#111; line-height:1.2; border:none; outline:none; background:transparent; font-family:inherit; width:100%; }
+  .fc-faction::placeholder { color:#bbb; font-style:italic; font-weight:400; }
+  .fc-regions { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
+  .fc-region-tag { font-size:9px; color:#888; font-weight:600; text-transform:uppercase; letter-spacing:.05em; background:#f0f0f0; border-radius:3px; padding:1px 5px; }
+  #faction-empty { font-size:13px; color:#ccc; font-style:italic; width:100%; text-align:center; padding:8px 0; }
 
-  /* ── map ── */
-  svg { display:block; background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer; flex-shrink:0; }
-  .region { transition:opacity .12s; }
+  /* Main layout */
+  #main { display:flex; gap:16px; align-items:flex-start; position:relative; }
+  svg { display:block; background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; }
+  .region { transition:opacity .12s; cursor:pointer; }
   .region:hover { opacity:.8; }
 
-  /* ── legend ── */
-  #legend {
-    background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15);
-    padding:14px 16px; min-width:200px; max-width:240px;
-  }
-  #legend h3 {
-    margin:0 0 12px; font-size:11px; color:#999; font-weight:700;
-    text-transform:uppercase; letter-spacing:.08em;
-  }
-  #leg-empty {
-    font-size:12px; color:#bbb; font-style:italic; text-align:center;
-    padding:12px 0;
-  }
-  .leg-row {
-    display:flex; align-items:center; gap:10px; margin-bottom:7px;
-    padding:5px 7px; border-radius:6px; cursor:pointer;
-  }
-  .leg-row:hover  { background:#f5f5f5; }
-  .leg-row.active { background:#eef3ff; }
-  .leg-swatch {
-    width:20px; height:20px; border-radius:4px; flex-shrink:0;
-    border:1px solid rgba(0,0,0,.18);
-  }
-  .leg-name {
-    font-size:13px; font-weight:500; color:#222; flex:1; min-width:0;
-    border:none; outline:none; background:transparent;
-    font-family:inherit; cursor:text;
-  }
-  .leg-name::placeholder { color:#aaa; font-weight:400; font-style:italic; }
-  .leg-name:focus { background:#f7f9ff; border-radius:3px; padding:0 3px; }
-  .leg-clear {
-    font-size:11px; color:#ccc; cursor:pointer; flex-shrink:0;
-    line-height:1; display:none;
-  }
-  .leg-row:hover .leg-clear { display:block; }
-  .leg-clear:hover { color:#e74c3c; }
+  /* Admin sidebar */
+  #sidebar { background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); padding:14px 15px; min-width:200px; max-width:230px; }
+  #sidebar h3 { margin:0 0 4px; font-size:10px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:.1em; }
+  #sidebar p  { margin:0 0 12px; font-size:11px; color:#bbb; }
+  .sb-row { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; padding:6px 7px; border-radius:6px; cursor:pointer; border:1px solid transparent; }
+  .sb-row:hover  { background:#f5f5f5; }
+  .sb-row.active { background:#eef3ff; border-color:#c8d8ff; }
+  .sb-swatch { width:14px; height:14px; border-radius:3px; flex-shrink:0; margin-top:3px; border:1px solid rgba(0,0,0,.15); }
+  .sb-fields { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
+  .sb-faction-label { font-size:10px; color:#aaa; font-style:italic; }
+  .sb-region { font-size:12px; font-weight:600; color:#222; width:100%; border:none; outline:none; background:transparent; font-family:inherit; }
+  .sb-region::placeholder { color:#bbb; font-style:italic; font-weight:400; }
+  .sb-divider { height:1px; background:#f0f0f0; margin:4px 0; }
+  .sb-clear { font-size:10px; color:#ddd; cursor:pointer; flex-shrink:0; margin-top:2px; display:none; }
+  .sb-row:hover .sb-clear { display:block; }
+  .sb-clear:hover { color:#e74c3c; }
+  #sb-empty { font-size:12px; color:#ccc; font-style:italic; text-align:center; padding:10px 0; }
+
+  /* Map text labels */
+  .lbl-faction { font-family:Georgia,serif; font-size:13px; font-weight:700; fill:#111; text-anchor:middle; dominant-baseline:middle; pointer-events:none; paint-order:stroke; stroke:rgba(255,255,255,.9); stroke-width:3.5px; stroke-linejoin:round; }
+  .lbl-region  { font-family:sans-serif; font-size:10px; font-weight:600; fill:#444; text-anchor:middle; dominant-baseline:middle; pointer-events:none; paint-order:stroke; stroke:rgba(255,255,255,.85); stroke-width:2.5px; stroke-linejoin:round; letter-spacing:.04em; text-transform:uppercase; }
+  .lbl-hit { fill:transparent; cursor:text; }
+
+  /* Floating editor */
+  #editor { display:none; position:absolute; z-index:200; transform:translate(-50%,-50%); }
+  #editor input { font-family:Georgia,serif; font-size:12px; font-weight:700; text-align:center; border:2px solid #3498db; border-radius:4px; padding:3px 7px; outline:none; background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(0,0,0,.2); min-width:80px; max-width:160px; }
+  #editor.editing-region input { font-family:sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; border-color:#95a5a6; }
+  #editor.editing-faction input { border-color:#3498db; }
 
   #loading { color:#888; font-size:14px; padding:40px; }
 </style>
@@ -81,264 +89,449 @@
     <div class="sw" style="background:#bdc3c7" data-c="#bdc3c7"></div>
   </div>
   <button id="clearBtn">Clear all</button>
+  <button id="shareBtn">🔗 Copy Share Link</button>
   <span id="info">Loading…</span>
+</div>
+<div id="viewBanner">👁 View-only — contact admin to make changes</div>
+
+<!-- FACTION LEGEND — one card per unique color -->
+<div id="faction-legend">
+  <h2>Faction Control</h2>
+  <div id="faction-cards"><div id="faction-empty">Color regions to see factions here</div></div>
 </div>
 
 <div id="main">
   <div id="loading">Loading map…</div>
-
-  <div id="legend">
-    <h3>Legend</h3>
-    <div id="leg-empty">Color a region to add it here</div>
+  <div id="editor"><input id="editorInput" type="text"></div>
+  <div id="sidebar">
+    <h3>Regions</h3>
+    <p>Click region → color &amp; rename</p>
+    <div id="sb-empty">No regions colored yet</div>
   </div>
 </div>
 
 <script>
 /*
-  Strategy:
-  1. Fetch 062-2.svg and extract base64 PNG href + bounding box for each raster0–8
-  2. Build an SVG:
-     - raster0 as the base map background (non-interactive)
-     - raster1–8 as clickable region layers, each with an SVG filter
-       that replaces pixel colors with the chosen color while preserving alpha
-  3. Selection changes the filter's feFlood color
-
-  Region mapping (dot inside bounding box):
-    raster8: (122,31,195×212)  → Region 1  dot(243,140)
-    raster7: (281,94, 89×122)  → Region 2  dot(309,166)
-    raster6: (143,174,166×171) → Region 3  dot(190,241)
-    raster5: (300,205,181×114) → Region 7  dot(318,227)
-    raster4: (259,259,188×123) → Region 4  dot(285,305)
-    raster2: (110,288,212×161) → Region 5  dot(248,395)
-    raster3: (259,322,118×185) → Region 8  dot(333,373)
-    raster1: (166,438,150×114) → Region 6  dot(266,499)
+  KEY DESIGN:
+  - Faction name is tied to the COLOR, stored in FACTIONS{hex→name}
+  - Multiple regions with same color → ONE faction card in legend
+  - Regions have their own regionName (geographic name)
+  - Map shows: faction name (Layer 1, bold) + region name (Layer 2, small caps)
+  - Faction legend: one card per color, lists all region names as tags
 */
 
-// Region definitions — order = draw order (bottom to top)
-// name is editable by user in the legend
+// ── Region data ──────────────────────────────────────────────────
 const REGIONS = [
-  { id:'raster8', name:'Region 1',  color:null },
-  { id:'raster7', name:'Region 2',  color:null },
-  { id:'raster6', name:'Region 3',  color:null },
-  { id:'raster5', name:'Region 7',  color:null },
-  { id:'raster4', name:'Region 4',  color:null },
-  { id:'raster2', name:'Region 5',  color:null },
-  { id:'raster3', name:'Region 8',  color:null },
-  { id:'raster1', name:'Region 6',  color:null },
+  { id:'raster8', regionName:'Region 1', color:null, cx:219, cy:137 },
+  { id:'raster7', regionName:'Region 2', color:null, cx:325, cy:155 },
+  { id:'raster6', regionName:'Region 3', color:null, cx:226, cy:259 },
+  { id:'raster5', regionName:'Region 7', color:null, cx:390, cy:262 },
+  { id:'raster4', regionName:'Region 4', color:null, cx:353, cy:320 },
+  { id:'raster2', regionName:'Region 5', color:null, cx:216, cy:368 },
+  { id:'raster3', regionName:'Region 8', color:null, cx:318, cy:414 },
+  { id:'raster1', regionName:'Region 6', color:null, cx:241, cy:495 },
 ];
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const picker  = document.getElementById('colorPicker');
-const info    = document.getElementById('info');
-const legend  = document.getElementById('legend');
-let selected  = null;   // currently selected REGIONS[idx]
+// ── Faction names keyed by color hex ────────────────────────────
+// e.g. FACTIONS['#e74c3c'] = 'House Stark'
+const FACTIONS = {};
 
-// ── Legend — only colored regions are shown ──────────────
-function buildLegendRow(r, idx) {
+const SVG_NS    = 'http://www.w3.org/2000/svg';
+const picker    = document.getElementById('colorPicker');
+const infoEl    = document.getElementById('info');
+const sidebar   = document.getElementById('sidebar');
+const params    = new URLSearchParams(window.location.search);
+const VIEW_MODE = params.get('view') === '1';
+let selected    = null;
+let globalSvg   = null;
+
+// ── Helpers ──────────────────────────────────────────────────────
+function factionName(color) { return color ? (FACTIONS[color] || '') : ''; }
+
+// ── State encode / decode ────────────────────────────────────────
+function encodeState() {
+  return btoa(unescape(encodeURIComponent(JSON.stringify({
+    regions:  REGIONS.map(r => [r.color||'', r.regionName||'']),
+    factions: FACTIONS,
+  }))));
+}
+function decodeState(s) {
+  try { return JSON.parse(decodeURIComponent(escape(atob(s)))); } catch { return null; }
+}
+function getShareUrl() {
+  const u = new URL(window.location.href.split('?')[0]);
+  u.searchParams.set('view','1'); u.searchParams.set('s', encodeState());
+  return u.toString();
+}
+
+// ── Map label updates ─────────────────────────────────────────────
+function updateLabels(r) {
+  if (r.factionTxt) r.factionTxt.textContent = factionName(r.color);
+  if (r.regionTxt)  r.regionTxt.textContent  = r.regionName || '';
+}
+function updateAllLabelsForColor(color) {
+  REGIONS.filter(r => r.color === color).forEach(r => updateLabels(r));
+}
+
+// ── Floating editor ──────────────────────────────────────────────
+const editor      = document.getElementById('editor');
+const editorInput = document.getElementById('editorInput');
+let editR = null, editField = null;
+
+function openEditor(r, field, svgEl) {
+  if (VIEW_MODE) return;
+  editR = r; editField = field;
+  const cy_off = field === 'faction' ? r.cy - 9 : r.cy + 9;
+  const svgRect  = svgEl.getBoundingClientRect();
+  const mainRect = document.getElementById('main').getBoundingClientRect();
+  const scale    = svgRect.width / 580;
+  editor.style.left    = (svgRect.left - mainRect.left + r.cx * scale) + 'px';
+  editor.style.top     = (svgRect.top  - mainRect.top  + cy_off * scale) + 'px';
+  editor.style.display = 'block';
+  editor.className     = field === 'faction' ? 'editing-faction' : 'editing-region';
+  editorInput.placeholder = field === 'faction' ? 'Faction name…' : 'Region name…';
+  editorInput.value    = field === 'faction' ? factionName(r.color) : (r.regionName||'');
+  sizeInput();
+  editorInput.focus(); editorInput.select();
+}
+function sizeInput() {
+  editorInput.style.width = Math.max(80, (editorInput.value.length + 3) * 8) + 'px';
+}
+function closeEditor() {
+  if (!editR) return;
+  const val = editorInput.value.trim();
+  if (editField === 'faction') {
+    if (editR.color) FACTIONS[editR.color] = val;
+    updateAllLabelsForColor(editR.color);
+  } else {
+    editR.regionName = val;
+    updateLabels(editR);
+  }
+  refreshSidebar(); refreshFactionLegend();
+  editor.style.display = 'none';
+  editR = null; editField = null;
+}
+editorInput.addEventListener('input', () => {
+  sizeInput();
+  if (!editR) return;
+  if (editField === 'faction') {
+    if (editR.color) FACTIONS[editR.color] = editorInput.value;
+    updateAllLabelsForColor(editR.color);
+  } else {
+    editR.regionName = editorInput.value;
+    updateLabels(editR);
+  }
+  refreshSidebar(); refreshFactionLegend();
+});
+editorInput.addEventListener('keydown', e => { if (e.key==='Enter'||e.key==='Escape') closeEditor(); });
+document.addEventListener('click', e => {
+  if (editor.style.display==='block' && !editor.contains(e.target)) closeEditor();
+});
+
+// ── Admin Sidebar ─────────────────────────────────────────────────
+function buildSidebarRow(r) {
   const row = document.createElement('div');
-  row.className = 'leg-row';
+  row.className = 'sb-row';
 
   const swatch = document.createElement('div');
-  swatch.className = 'leg-swatch';
-  swatch.style.background = r.color;
+  swatch.className = 'sb-swatch';
+  swatch.style.background = r.color || '#eee';
 
-  const nameInput = document.createElement('input');
-  nameInput.className   = 'leg-name';
-  nameInput.type        = 'text';
-  nameInput.value       = r.faction || '';
-  nameInput.placeholder = 'Enter faction name…';
-  nameInput.addEventListener('input',  () => { r.faction = nameInput.value; });
-  nameInput.addEventListener('click',  e  => e.stopPropagation());
-  nameInput.addEventListener('keydown',e  => { if(e.key==='Enter') nameInput.blur(); });
+  const fields = document.createElement('div');
+  fields.className = 'sb-fields';
+
+  // show which faction this color belongs to (read-only label)
+  const fLbl = document.createElement('div');
+  fLbl.className = 'sb-faction-label';
+  fLbl.textContent = factionName(r.color) ? '⚑ ' + factionName(r.color) : 'No faction set';
+  r.sbFactionLbl = fLbl;
+
+  const rEl = document.createElement('input');
+  rEl.className   = 'sb-region'; rEl.type = 'text';
+  rEl.value       = r.regionName || '';
+  rEl.placeholder = 'Region name…';
+  rEl.addEventListener('input', () => { r.regionName = rEl.value; updateLabels(r); refreshFactionLegend(); });
+  rEl.addEventListener('click', e => e.stopPropagation());
+  rEl.addEventListener('keydown', e => { if(e.key==='Enter') rEl.blur(); });
 
   const clr = document.createElement('span');
-  clr.className   = 'leg-clear';
-  clr.textContent = '✕';
-  clr.title = 'Remove';
-  clr.addEventListener('click', e => { e.stopPropagation(); clearRegion(r, idx); });
+  clr.className = 'sb-clear'; clr.textContent = '✕';
+  clr.addEventListener('click', e => { e.stopPropagation(); clearRegion(r); });
 
-  row.appendChild(swatch);
-  row.appendChild(nameInput);
-  row.appendChild(clr);
-  row.addEventListener('click', () => selectRegion(r, idx));
+  fields.appendChild(fLbl); fields.appendChild(rEl);
+  row.appendChild(swatch); row.appendChild(fields); row.appendChild(clr);
+  row.addEventListener('click', () => selectRegion(r));
 
-  r.legRow    = row;
-  r.legSwatch = swatch;
-  r.nameInput = nameInput;
+  r.sbRow = row; r.sbSwatch = swatch; r.sbRegionEl = rEl;
   return row;
 }
 
-function refreshLegend() {
-  // Remove all existing rows
-  document.querySelectorAll('.leg-row').forEach(el => el.remove());
-
+function refreshSidebar() {
+  sidebar.querySelectorAll('.sb-row,.sb-divider').forEach(el => el.remove());
+  const empty   = document.getElementById('sb-empty');
   const colored = REGIONS.filter(r => r.color);
-  const empty   = document.getElementById('leg-empty');
-
-  if (colored.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    colored.forEach(r => {
-      const idx = REGIONS.indexOf(r);
-      const row = r.legRow || buildLegendRow(r, idx);
-      // update swatch color in case it changed
-      r.legSwatch.style.background = r.color;
-      row.classList.toggle('active', r === selected);
-      legend.appendChild(row);
-    });
-  }
-}
-
-function updateLegendRow(r) {
-  if (r.legRow) {
-    r.legSwatch.style.background = r.color || '';
-    r.legRow.classList.toggle('active', r === selected);
-  }
-  refreshLegend();
-  // sync active state across all rows
-  REGIONS.forEach(rr => rr.legRow && rr.legRow.classList.toggle('active', rr === selected));
-}
-
-// ── Region interaction ────────────────────────────────────
-function selectRegion(r, idx) {
-  selected = r;
-  applyColor(r, picker.value);
-  info.textContent = r.name + ' selected';
-  REGIONS.forEach((rr, ii) => {
-    rr.legRow && rr.legRow.classList.toggle('active', rr === r);
+  if (!colored.length) { empty.style.display='block'; return; }
+  empty.style.display='none';
+  colored.forEach((r, i) => {
+    if (i > 0) { const d = document.createElement('div'); d.className='sb-divider'; sidebar.appendChild(d); }
+    const row = r.sbRow || buildSidebarRow(r);
+    // update faction label
+    if (r.sbFactionLbl) r.sbFactionLbl.textContent = factionName(r.color) ? '⚑ ' + factionName(r.color) : 'No faction set';
+    if (r.sbSwatch) r.sbSwatch.style.background = r.color;
+    if (r.sbRegionEl) r.sbRegionEl.value = r.regionName || '';
+    row.classList.toggle('active', r === selected);
+    sidebar.appendChild(row);
   });
 }
 
-function clearRegion(r, idx) {
-  r.color   = null;
-  r.faction = '';
-  r.legRow  = null;   // force rebuild next time
-  r.floodEl.setAttribute('flood-color',   'transparent');
-  r.floodEl.setAttribute('flood-opacity', '0');
-  if (selected === r) { selected = null; info.textContent = 'Click a region'; }
-  refreshLegend();
+// ── Faction Legend (grouped by color) ────────────────────────────
+function refreshFactionLegend() {
+  const cards = document.getElementById('faction-cards');
+  const empty = document.getElementById('faction-empty');
+  cards.querySelectorAll('.faction-card').forEach(c => c.remove());
+
+  // Group by color
+  const colorMap = {};
+  REGIONS.forEach(r => {
+    if (!r.color) return;
+    if (!colorMap[r.color]) colorMap[r.color] = [];
+    colorMap[r.color].push(r);
+  });
+
+  const colors = Object.keys(colorMap);
+  if (!colors.length) { empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  colors.forEach(color => {
+    const members = colorMap[color];
+    const card = document.createElement('div');
+    card.className = 'faction-card';
+    card.style.background = color + '12';
+
+    const stripe = document.createElement('div');
+    stripe.className = 'faction-stripe';
+    stripe.style.background = color;
+
+    const body = document.createElement('div');
+    body.className = 'fc-body';
+
+    // Faction name — editable (shared for this color)
+    const fEl = VIEW_MODE ? document.createElement('span') : document.createElement('input');
+    fEl.className = 'fc-faction';
+    if (VIEW_MODE) {
+      fEl.textContent = factionName(color) || '—';
+    } else {
+      fEl.type = 'text';
+      fEl.value = factionName(color) || '';
+      fEl.placeholder = 'Faction name…';
+      fEl.addEventListener('input', () => {
+        FACTIONS[color] = fEl.value;
+        updateAllLabelsForColor(color);
+        refreshSidebar();
+        // keep region tags updated
+        if (tagContainer) {
+          tagContainer.querySelectorAll('.fc-region-tag').forEach((tag, i) => {
+            tag.textContent = members[i]?.regionName || '';
+          });
+        }
+      });
+      fEl.addEventListener('click', e => e.stopPropagation());
+      fEl.addEventListener('keydown', e => { if(e.key==='Enter') fEl.blur(); });
+    }
+
+    // Region name tags (all regions with this color)
+    const tagContainer = document.createElement('div');
+    tagContainer.className = 'fc-regions';
+    members.forEach(r => {
+      const tag = document.createElement('span');
+      tag.className = 'fc-region-tag';
+      tag.textContent = r.regionName || r.id;
+      tagContainer.appendChild(tag);
+    });
+
+    body.appendChild(fEl); body.appendChild(tagContainer);
+    card.appendChild(stripe); card.appendChild(body);
+    cards.appendChild(card);
+  });
+}
+
+// ── Region interaction ────────────────────────────────────────────
+function selectRegion(r) {
+  selected = r;
+  applyColor(r, picker.value);
+  infoEl.textContent = (r.regionName || 'Region') + ' selected';
+  REGIONS.forEach(rr => rr.sbRow && rr.sbRow.classList.toggle('active', rr===r));
+}
+
+function clearRegion(r) {
+  const oldColor = r.color;
+  r.color = null; r.sbRow = null;
+  r.floodEl.setAttribute('flood-color','transparent');
+  r.floodEl.setAttribute('flood-opacity','0');
+  updateLabels(r);
+  // clean up unused faction
+  if (oldColor && !REGIONS.some(rr => rr.color === oldColor)) delete FACTIONS[oldColor];
+  if (selected===r) { selected=null; infoEl.textContent='Click a region'; }
+  refreshSidebar(); refreshFactionLegend();
 }
 
 function applyColor(r, hex) {
   r.color = hex;
-  const [rv, gv, bv] = [
-    parseInt(hex.slice(1,3),16),
-    parseInt(hex.slice(3,5),16),
-    parseInt(hex.slice(5,7),16)
-  ];
-  r.floodEl.setAttribute('flood-color',   `rgb(${rv},${gv},${bv})`);
+  // Ensure faction entry exists for this color
+  if (!FACTIONS[hex]) FACTIONS[hex] = '';
+  r.floodEl.setAttribute('flood-color',   `rgb(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)})`);
   r.floodEl.setAttribute('flood-opacity', '0.55');
-  updateLegendRow(r);
+  updateLabels(r);
+  if (r.sbSwatch) r.sbSwatch.style.background = hex;
+  refreshSidebar(); refreshFactionLegend();
 }
 
-// ── Main init ────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────
 async function init() {
   const resp = await fetch('062-2.svg');
   const text = await resp.text();
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(text, 'image/svg+xml');
+  const doc  = new DOMParser().parseFromString(text, 'image/svg+xml');
 
   const imgData = {};
-  for (let i = 0; i <= 8; i++) {
-    const el = doc.getElementById(`raster${i}`);
-    if (!el) continue;
+  for (let i=0;i<=8;i++) {
+    const el = doc.getElementById(`raster${i}`); if (!el) continue;
     imgData[`raster${i}`] = {
-      href:   el.getAttribute('href') || el.getAttributeNS('http://www.w3.org/1999/xlink','href'),
-      x:      +el.getAttribute('x'),
-      y:      +el.getAttribute('y'),
-      width:  +el.getAttribute('width'),
-      height: +el.getAttribute('height'),
+      href: el.getAttribute('href') || el.getAttributeNS('http://www.w3.org/1999/xlink','href'),
+      x: +el.getAttribute('x'), y: +el.getAttribute('y'),
+      width: +el.getAttribute('width'), height: +el.getAttribute('height'),
     };
   }
 
-  // Build SVG
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('width',  '580');
-  svg.setAttribute('height', '580');
-  svg.setAttribute('viewBox','0 0 580 580');
+  const svg = document.createElementNS(SVG_NS,'svg');
+  svg.setAttribute('width','580'); svg.setAttribute('height','580'); svg.setAttribute('viewBox','0 0 580 580');
+  globalSvg = svg;
 
-  const defs = document.createElementNS(SVG_NS, 'defs');
-
-  REGIONS.forEach((r, idx) => {
-    const fid = `cf${idx}`;
-    const filter = document.createElementNS(SVG_NS, 'filter');
-    filter.setAttribute('id', fid);
-    filter.setAttribute('x', '0%'); filter.setAttribute('y', '0%');
-    filter.setAttribute('width', '100%'); filter.setAttribute('height', '100%');
-    filter.setAttribute('color-interpolation-filters', 'sRGB');
-
-    const flood = document.createElementNS(SVG_NS, 'feFlood');
-    flood.setAttribute('flood-color',   'transparent');
-    flood.setAttribute('flood-opacity', '0');
-    flood.setAttribute('result', 'flood');
-
-    const comp = document.createElementNS(SVG_NS, 'feComposite');
-    comp.setAttribute('in',  'flood');
-    comp.setAttribute('in2', 'SourceAlpha');
-    comp.setAttribute('operator', 'in');
-
-    filter.appendChild(flood);
-    filter.appendChild(comp);
-    defs.appendChild(filter);
-    r.filterId = fid;
-    r.floodEl  = flood;
+  const defs = document.createElementNS(SVG_NS,'defs');
+  REGIONS.forEach((r,idx) => {
+    const f = document.createElementNS(SVG_NS,'filter');
+    f.setAttribute('id',`cf${idx}`); f.setAttribute('x','0%'); f.setAttribute('y','0%'); f.setAttribute('width','100%'); f.setAttribute('height','100%');
+    f.setAttribute('color-interpolation-filters','sRGB');
+    const flood = document.createElementNS(SVG_NS,'feFlood');
+    flood.setAttribute('flood-color','transparent'); flood.setAttribute('flood-opacity','0'); flood.setAttribute('result','flood');
+    const comp = document.createElementNS(SVG_NS,'feComposite');
+    comp.setAttribute('in','flood'); comp.setAttribute('in2','SourceAlpha'); comp.setAttribute('operator','in');
+    f.appendChild(flood); f.appendChild(comp); defs.appendChild(f);
+    r.filterId=`cf${idx}`; r.floodEl=flood;
   });
-
   svg.appendChild(defs);
 
   // Base map
-  const base = document.createElementNS(SVG_NS, 'image');
+  const base = document.createElementNS(SVG_NS,'image');
   const b = imgData['raster0'];
-  base.setAttribute('x', b.x); base.setAttribute('y', b.y);
-  base.setAttribute('width', b.width); base.setAttribute('height', b.height);
-  base.setAttribute('href', b.href);
-  base.style.pointerEvents = 'none';
+  base.setAttribute('x',b.x); base.setAttribute('y',b.y); base.setAttribute('width',b.width); base.setAttribute('height',b.height);
+  base.setAttribute('href',b.href); base.style.pointerEvents='none';
   svg.appendChild(base);
 
-  // Region layers
-  REGIONS.forEach((r, idx) => {
-    const d = imgData[r.id];
-    if (!d) return;
-    const img = document.createElementNS(SVG_NS, 'image');
-    img.setAttribute('x',      d.x);
-    img.setAttribute('y',      d.y);
-    img.setAttribute('width',  d.width);
-    img.setAttribute('height', d.height);
-    img.setAttribute('href',   d.href);
-    img.setAttribute('filter', `url(#${r.filterId})`);
+  // Region fills
+  REGIONS.forEach((r,idx) => {
+    const d=imgData[r.id]; if(!d) return;
+    const img=document.createElementNS(SVG_NS,'image');
+    img.setAttribute('x',d.x); img.setAttribute('y',d.y); img.setAttribute('width',d.width); img.setAttribute('height',d.height);
+    img.setAttribute('href',d.href); img.setAttribute('filter',`url(#cf${idx})`);
     img.classList.add('region');
-    img.addEventListener('click', () => selectRegion(r, idx));
-    svg.appendChild(img);
-    r.el = img;
+    if (!VIEW_MODE) img.addEventListener('click',()=>selectRegion(r));
+    svg.appendChild(img); r.el=img;
   });
+
+  // Label layers
+  const gF = document.createElementNS(SVG_NS,'g');   // faction name labels
+  const gR = document.createElementNS(SVG_NS,'g');   // region name labels
+
+  REGIONS.forEach(r => {
+    // faction layer hit + text
+    if (!VIEW_MODE) {
+      const hf=document.createElementNS(SVG_NS,'rect');
+      hf.setAttribute('x',r.cx-55); hf.setAttribute('y',r.cy-19); hf.setAttribute('width',110); hf.setAttribute('height',18); hf.setAttribute('rx',3);
+      hf.classList.add('lbl-hit');
+      hf.addEventListener('click',e=>{e.stopPropagation(); openEditor(r,'faction',svg);});
+      gF.appendChild(hf);
+    }
+    const tf=document.createElementNS(SVG_NS,'text');
+    tf.setAttribute('x',r.cx); tf.setAttribute('y',r.cy-9); tf.classList.add('lbl-faction');
+    tf.textContent=''; r.factionTxt=tf;
+    gF.appendChild(tf);
+
+    // region layer hit + text
+    if (!VIEW_MODE) {
+      const hr=document.createElementNS(SVG_NS,'rect');
+      hr.setAttribute('x',r.cx-50); hr.setAttribute('y',r.cy+2); hr.setAttribute('width',100); hr.setAttribute('height',16); hr.setAttribute('rx',3);
+      hr.classList.add('lbl-hit');
+      hr.addEventListener('click',e=>{e.stopPropagation(); openEditor(r,'region',svg);});
+      gR.appendChild(hr);
+    }
+    const tr=document.createElementNS(SVG_NS,'text');
+    tr.setAttribute('x',r.cx); tr.setAttribute('y',r.cy+10); tr.classList.add('lbl-region');
+    tr.textContent=r.regionName||''; r.regionTxt=tr;
+    gR.appendChild(tr);
+  });
+  svg.appendChild(gF); svg.appendChild(gR);
 
   document.getElementById('loading').remove();
-  document.getElementById('main').insertBefore(svg, legend);
-  info.textContent = 'Click a region';
+  document.getElementById('main').insertBefore(svg, sidebar);
 
-  refreshLegend();
+  // Load state from URL
+  const s = params.get('s');
+  if (s) {
+    const data = decodeState(s);
+    if (data) {
+      // restore factions map
+      if (data.factions) Object.assign(FACTIONS, data.factions);
+      // restore regions
+      if (data.regions) data.regions.forEach(([color, regionName], idx) => {
+        if (!REGIONS[idx]) return;
+        REGIONS[idx].regionName = regionName || REGIONS[idx].regionName;
+        if (color) {
+          REGIONS[idx].color = color;
+          const r = REGIONS[idx];
+          r.floodEl.setAttribute('flood-color', `rgb(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)})`);
+          r.floodEl.setAttribute('flood-opacity','0.55');
+        }
+        updateLabels(REGIONS[idx]);
+      });
+    }
+  }
 
-  // Toolbar events
-  picker.addEventListener('input', () => {
-    if (selected) applyColor(selected, picker.value);
-  });
+  refreshSidebar(); refreshFactionLegend();
 
-  document.querySelectorAll('.sw').forEach(sw => {
-    sw.addEventListener('click', () => {
-      picker.value = sw.dataset.c;
-      if (selected) applyColor(selected, picker.value);
-    });
-  });
+  if (VIEW_MODE) {
+    document.getElementById('toolbar').style.display    = 'none';
+    document.getElementById('viewBanner').style.display = 'block';
+    document.getElementById('sidebar').style.display    = 'none';
+    return;
+  }
 
+  infoEl.textContent = 'Click a region';
+
+  picker.addEventListener('input', () => { if (selected) applyColor(selected, picker.value); });
+  document.querySelectorAll('.sw').forEach(sw =>
+    sw.addEventListener('click', () => { picker.value=sw.dataset.c; if (selected) applyColor(selected, picker.value); })
+  );
   document.getElementById('clearBtn').addEventListener('click', () => {
-    REGIONS.forEach((r, idx) => clearRegion(r, idx));
-    selected = null;
-    info.textContent = 'Click a region';
+    REGIONS.forEach(r => {
+      r.color=null; r.sbRow=null;
+      r.floodEl.setAttribute('flood-color','transparent'); r.floodEl.setAttribute('flood-opacity','0');
+      updateLabels(r);
+    });
+    Object.keys(FACTIONS).forEach(k => delete FACTIONS[k]);
+    selected=null; infoEl.textContent='Click a region';
+    refreshSidebar(); refreshFactionLegend();
+  });
+  document.getElementById('shareBtn').addEventListener('click', () => {
+    const url = getShareUrl();
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('shareBtn');
+      btn.textContent='✓ Copied!'; btn.classList.add('copied');
+      setTimeout(()=>{ btn.textContent='🔗 Copy Share Link'; btn.classList.remove('copied'); }, 2500);
+    }).catch(() => prompt('Share link:', url));
   });
 }
 
-init().catch(e => { info.textContent = 'Error: ' + e.message; console.error(e); });
+init().catch(e => { infoEl.textContent='Error: '+e.message; console.error(e); });
 </script>
 </body>
 </html>
