@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- GitHub Pages: upload map.html + map.svg (export from 062-3.svg) in the same folder. -->
 <title>Interactive Region Map</title>
 <style>
   * { box-sizing:border-box; }
@@ -40,6 +41,7 @@
   svg { display:block; background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-shrink:0; }
   .region { transition:opacity .12s; cursor:pointer; }
   .region:hover { opacity:.8; }
+  .city-dot { pointer-events:none; }
 
   /* Admin sidebar */
   #sidebar { background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15); padding:14px 15px; min-width:200px; max-width:230px; }
@@ -120,20 +122,76 @@
   - Faction legend: one card per color, lists all region names as tags
 */
 
-// ── Region data ──────────────────────────────────────────────────
+// ── Region data (keep in sync with 062-3.svg — no other files needed) ──
 const REGIONS = [
-  { id:'raster8', regionName:'Region 1', color:null, cx:219, cy:137 },
-  { id:'raster7', regionName:'Region 2', color:null, cx:325, cy:155 },
-  { id:'raster6', regionName:'Region 3', color:null, cx:226, cy:259 },
-  { id:'raster5', regionName:'Region 7', color:null, cx:390, cy:262 },
-  { id:'raster4', regionName:'Region 4', color:null, cx:353, cy:320 },
-  { id:'raster2', regionName:'Region 5', color:null, cx:216, cy:368 },
-  { id:'raster3', regionName:'Region 8', color:null, cx:318, cy:414 },
-  { id:'raster1', regionName:'Region 6', color:null, cx:241, cy:495 },
+  { id:'raster8', regionName:'North', color:null, cx:240, cy:136 },
+  { id:'raster7', regionName:'Northeast', color:null, cx:323, cy:154 },
+  { id:'raster6', regionName:'West Upper', color:null, cx:215, cy:258 },
+  { id:'raster5', regionName:'East Upper', color:null, cx:387, cy:266 },
+  { id:'raster4', regionName:'Center', color:null, cx:360, cy:321 },
+  { id:'raster2', regionName:'West Lower', color:null, cx:208, cy:378 },
+  { id:'raster3', regionName:'Southwest', color:null, cx:326, cy:387 },
+  { id:'raster1', regionName:'South', color:null, cx:236, cy:492 },
 ];
 
+// SVG must sit in the same folder as this HTML file.
+// SVG filename candidates (same folder as map.html, or one level up for /map/ URLs)
+const SVG_CANDIDATES = ['map.svg', '062-3.svg'];
+
+async function loadMapSvg() {
+  const bases = [
+    new URL('.', document.baseURI),
+    new URL('..', document.baseURI),
+  ];
+  const tried = [];
+  for (const base of bases) {
+    for (const name of SVG_CANDIDATES) {
+      const url = new URL(name, base).href;
+      if (tried.includes(url)) continue;
+      tried.push(url);
+      const resp = await fetch(url);
+      if (resp.ok) return resp.text();
+    }
+  }
+  throw new Error(
+    'Could not load map SVG (404). Upload map.svg next to map.html.\nTried:\n' + tried.join('\n')
+  );
+}
+
+// City dots from map.svg artwork (580×580); drawn above faction overlays.
+const CITY_POSITIONS = {
+  raster8: { x: 249, y: 140 },  // North
+  raster7: { x: 309, y: 166 },  // Northeast
+  raster6: { x: 193, y: 245 },  // West Upper
+  raster5: { x: 317, y: 227 },  // East Upper
+  raster4: { x: 285, y: 305 },  // Center
+  raster2: { x: 249, y: 387 },  // West Lower
+  raster3: { x: 331, y: 369 },  // Southwest
+  raster1: { x: 263, y: 496 },  // South
+};
+
+function appendCityDot(group, x, y, radius) {
+  const halo = document.createElementNS(SVG_NS, 'circle');
+  halo.setAttribute('cx', x);
+  halo.setAttribute('cy', y);
+  halo.setAttribute('r', radius + 2);
+  halo.setAttribute('fill', '#f8f4ea');
+  halo.setAttribute('stroke', '#111');
+  halo.setAttribute('stroke-width', 1.2);
+  halo.classList.add('city-dot');
+
+  const dot = document.createElementNS(SVG_NS, 'circle');
+  dot.setAttribute('cx', x);
+  dot.setAttribute('cy', y);
+  dot.setAttribute('r', radius);
+  dot.setAttribute('fill', '#111');
+  dot.classList.add('city-dot');
+
+  group.appendChild(halo);
+  group.appendChild(dot);
+}
+
 // ── Faction names keyed by color hex ────────────────────────────
-// e.g. FACTIONS['#e74c3c'] = 'House Stark'
 const FACTIONS = {};
 
 const SVG_NS    = 'http://www.w3.org/2000/svg';
@@ -184,7 +242,7 @@ function openEditor(r, field, svgEl) {
   const cy_off = field === 'faction' ? r.cy - 9 : r.cy + 9;
   const svgRect  = svgEl.getBoundingClientRect();
   const mainRect = document.getElementById('main').getBoundingClientRect();
-  const scale    = svgRect.width / 580;
+  const scale    = svgRect.width / (+svgEl.dataset.coordSize || 580);
   editor.style.left    = (svgRect.left - mainRect.left + r.cx * scale) + 'px';
   editor.style.top     = (svgRect.top  - mainRect.top  + cy_off * scale) + 'px';
   editor.style.display = 'block';
@@ -388,8 +446,7 @@ function applyColor(r, hex) {
 
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
-  const resp = await fetch('062-2.svg');
-  const text = await resp.text();
+  const text = await loadMapSvg();
   const doc  = new DOMParser().parseFromString(text, 'image/svg+xml');
 
   const imgData = {};
@@ -402,8 +459,15 @@ async function init() {
     };
   }
 
+  const srcSvg = doc.documentElement;
+  const vb = (srcSvg.getAttribute('viewBox') || '0 0 580 580').split(/\s+/).map(Number);
+  const MAP_COORD = vb[2] || 580;
+
   const svg = document.createElementNS(SVG_NS,'svg');
-  svg.setAttribute('width','580'); svg.setAttribute('height','580'); svg.setAttribute('viewBox','0 0 580 580');
+  svg.setAttribute('width', '580');
+  svg.setAttribute('height', '580');
+  svg.setAttribute('viewBox', `0 0 ${MAP_COORD} ${MAP_COORD}`);
+  svg.dataset.coordSize = MAP_COORD;
   globalSvg = svg;
 
   const defs = document.createElementNS(SVG_NS,'defs');
@@ -437,6 +501,16 @@ async function init() {
     if (!VIEW_MODE) img.addEventListener('click',()=>selectRegion(r));
     svg.appendChild(img); r.el=img;
   });
+
+  // City dots — above faction overlays so they stay visible
+  const gCities = document.createElementNS(SVG_NS, 'g');
+  gCities.setAttribute('class', 'city-dots');
+  const cityRadius = MAP_COORD >= 1000 ? 6 : 5;
+  for (const r of REGIONS) {
+    const pos = CITY_POSITIONS[r.id];
+    if (pos) appendCityDot(gCities, pos.x, pos.y, cityRadius);
+  }
+  svg.appendChild(gCities);
 
   // Label layers
   const gF = document.createElementNS(SVG_NS,'g');   // faction name labels
