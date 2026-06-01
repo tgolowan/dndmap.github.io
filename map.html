@@ -28,28 +28,37 @@
   /* ── legend ── */
   #legend {
     background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.15);
-    padding:12px 14px; min-width:180px; max-width:220px;
+    padding:14px 16px; min-width:200px; max-width:240px;
   }
-  #legend h3 { margin:0 0 10px; font-size:13px; color:#555; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  #legend h3 {
+    margin:0 0 12px; font-size:11px; color:#999; font-weight:700;
+    text-transform:uppercase; letter-spacing:.08em;
+  }
+  #leg-empty {
+    font-size:12px; color:#bbb; font-style:italic; text-align:center;
+    padding:12px 0;
+  }
   .leg-row {
-    display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;
-    padding:4px 6px; border-radius:5px;
+    display:flex; align-items:center; gap:10px; margin-bottom:7px;
+    padding:5px 7px; border-radius:6px; cursor:pointer;
   }
-  .leg-row:hover { background:#f5f5f5; }
-  .leg-row.active { background:#f0f4ff; }
+  .leg-row:hover  { background:#f5f5f5; }
+  .leg-row.active { background:#eef3ff; }
   .leg-swatch {
-    width:18px; height:18px; border-radius:3px; flex-shrink:0;
-    border:1px solid rgba(0,0,0,.15);
-    background: repeating-linear-gradient(45deg, #ccc 0px, #ccc 3px, #eee 3px, #eee 6px);
+    width:20px; height:20px; border-radius:4px; flex-shrink:0;
+    border:1px solid rgba(0,0,0,.18);
   }
   .leg-name {
-    font-size:12px; color:#333; flex:1; min-width:0;
+    font-size:13px; font-weight:500; color:#222; flex:1; min-width:0;
     border:none; outline:none; background:transparent;
     font-family:inherit; cursor:text;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .leg-name:focus { color:#000; background:#f9f9ff; border-radius:3px; padding:0 2px; }
-  .leg-clear { font-size:10px; color:#bbb; cursor:pointer; flex-shrink:0; padding:0 2px; display:none; }
+  .leg-name::placeholder { color:#aaa; font-weight:400; font-style:italic; }
+  .leg-name:focus { background:#f7f9ff; border-radius:3px; padding:0 3px; }
+  .leg-clear {
+    font-size:11px; color:#ccc; cursor:pointer; flex-shrink:0;
+    line-height:1; display:none;
+  }
   .leg-row:hover .leg-clear { display:block; }
   .leg-clear:hover { color:#e74c3c; }
 
@@ -80,7 +89,7 @@
 
   <div id="legend">
     <h3>Legend</h3>
-    <!-- rows inserted by JS -->
+    <div id="leg-empty">Color a region to add it here</div>
   </div>
 </div>
 
@@ -124,60 +133,71 @@ const info    = document.getElementById('info');
 const legend  = document.getElementById('legend');
 let selected  = null;   // currently selected REGIONS[idx]
 
-// ── Build legend rows ────────────────────────────────────
-function buildLegend() {
-  REGIONS.forEach((r, idx) => {
-    const row = document.createElement('div');
-    row.className = 'leg-row';
-    row.dataset.idx = idx;
+// ── Legend — only colored regions are shown ──────────────
+function buildLegendRow(r, idx) {
+  const row = document.createElement('div');
+  row.className = 'leg-row';
 
-    const swatch = document.createElement('div');
-    swatch.className = 'leg-swatch';
-    swatch.id = `ls${idx}`;
+  const swatch = document.createElement('div');
+  swatch.className = 'leg-swatch';
+  swatch.style.background = r.color;
 
-    const nameInput = document.createElement('input');
-    nameInput.className = 'leg-name';
-    nameInput.type  = 'text';
-    nameInput.value = r.name;
-    nameInput.title = 'Click to rename';
-    nameInput.addEventListener('input',  () => { r.name = nameInput.value; });
-    nameInput.addEventListener('click',  e  => e.stopPropagation());
-    nameInput.addEventListener('keydown',e  => { if(e.key==='Enter') nameInput.blur(); });
+  const nameInput = document.createElement('input');
+  nameInput.className   = 'leg-name';
+  nameInput.type        = 'text';
+  nameInput.value       = r.faction || '';
+  nameInput.placeholder = 'Enter faction name…';
+  nameInput.addEventListener('input',  () => { r.faction = nameInput.value; });
+  nameInput.addEventListener('click',  e  => e.stopPropagation());
+  nameInput.addEventListener('keydown',e  => { if(e.key==='Enter') nameInput.blur(); });
 
-    const clr = document.createElement('span');
-    clr.className   = 'leg-clear';
-    clr.textContent = '✕';
-    clr.title = 'Clear color';
-    clr.addEventListener('click', e => {
-      e.stopPropagation();
-      clearRegion(r, idx);
-    });
+  const clr = document.createElement('span');
+  clr.className   = 'leg-clear';
+  clr.textContent = '✕';
+  clr.title = 'Remove';
+  clr.addEventListener('click', e => { e.stopPropagation(); clearRegion(r, idx); });
 
-    row.appendChild(swatch);
-    row.appendChild(nameInput);
-    row.appendChild(clr);
+  row.appendChild(swatch);
+  row.appendChild(nameInput);
+  row.appendChild(clr);
+  row.addEventListener('click', () => selectRegion(r, idx));
 
-    // clicking the row selects the region
-    row.addEventListener('click', () => selectRegion(r, idx));
-    legend.appendChild(row);
-    r.legRow   = row;
-    r.legSwatch = swatch;
-    r.nameInput = nameInput;
-  });
+  r.legRow    = row;
+  r.legSwatch = swatch;
+  r.nameInput = nameInput;
+  return row;
 }
 
-function updateLegendRow(r, idx) {
-  if (r.color) {
-    r.legSwatch.style.background = r.color;
-    r.legSwatch.style.backgroundImage = 'none';
-    r.legSwatch.style.border = '1px solid rgba(0,0,0,.2)';
+function refreshLegend() {
+  // Remove all existing rows
+  document.querySelectorAll('.leg-row').forEach(el => el.remove());
+
+  const colored = REGIONS.filter(r => r.color);
+  const empty   = document.getElementById('leg-empty');
+
+  if (colored.length === 0) {
+    empty.style.display = 'block';
   } else {
-    r.legSwatch.style.background = '';
-    r.legSwatch.style.backgroundImage = '';
-    r.legSwatch.style.border = '1px solid rgba(0,0,0,.15)';
+    empty.style.display = 'none';
+    colored.forEach(r => {
+      const idx = REGIONS.indexOf(r);
+      const row = r.legRow || buildLegendRow(r, idx);
+      // update swatch color in case it changed
+      r.legSwatch.style.background = r.color;
+      row.classList.toggle('active', r === selected);
+      legend.appendChild(row);
+    });
   }
-  // active highlight
-  REGIONS.forEach((rr, ii) => rr.legRow && rr.legRow.classList.toggle('active', rr === selected));
+}
+
+function updateLegendRow(r) {
+  if (r.legRow) {
+    r.legSwatch.style.background = r.color || '';
+    r.legRow.classList.toggle('active', r === selected);
+  }
+  refreshLegend();
+  // sync active state across all rows
+  REGIONS.forEach(rr => rr.legRow && rr.legRow.classList.toggle('active', rr === selected));
 }
 
 // ── Region interaction ────────────────────────────────────
@@ -191,11 +211,13 @@ function selectRegion(r, idx) {
 }
 
 function clearRegion(r, idx) {
-  r.color = null;
+  r.color   = null;
+  r.faction = '';
+  r.legRow  = null;   // force rebuild next time
   r.floodEl.setAttribute('flood-color',   'transparent');
   r.floodEl.setAttribute('flood-opacity', '0');
-  updateLegendRow(r, idx);
   if (selected === r) { selected = null; info.textContent = 'Click a region'; }
+  refreshLegend();
 }
 
 function applyColor(r, hex) {
@@ -207,7 +229,7 @@ function applyColor(r, hex) {
   ];
   r.floodEl.setAttribute('flood-color',   `rgb(${rv},${gv},${bv})`);
   r.floodEl.setAttribute('flood-opacity', '0.55');
-  updateLegendRow(r, REGIONS.indexOf(r));
+  updateLegendRow(r);
 }
 
 // ── Main init ────────────────────────────────────────────
@@ -295,7 +317,7 @@ async function init() {
   document.getElementById('main').insertBefore(svg, legend);
   info.textContent = 'Click a region';
 
-  buildLegend();
+  refreshLegend();
 
   // Toolbar events
   picker.addEventListener('input', () => {
