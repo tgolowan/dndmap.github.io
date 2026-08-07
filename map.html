@@ -31,7 +31,7 @@
   .btn-primary { border-color:#c69b4b; background:linear-gradient(#b78a3d,#936a2a); color:#fff8e8; }
   .btn-primary:hover { background:var(--brand-dark); }
   .btn-danger { color:#e0a49d; }
-  #shareBtn.copied { border-color:#16845b; background:#16845b; }
+  #shareBtn.copied,#editableLinkBtn.copied { border-color:#58724c; background:#58724c; color:#fff8e8; }
   #viewBanner { display:none; padding:6px 10px; border:1px solid rgba(197,154,74,.35); border-radius:999px; background:rgba(197,154,74,.12); color:#ead7ae; font-size:11px; font-weight:750; white-space:nowrap; }
   #info { color:#baad98; font-size:11px; white-space:nowrap; }
 
@@ -132,6 +132,7 @@
       <label class="layer-toggle"><input type="checkbox" id="cityLabelsCheck" checked> Cities</label>
       <span id="viewBanner">Read only</span>
       <button id="clearBtn" class="btn btn-danger edit-only">Clear all</button>
+      <button id="editableLinkBtn" class="btn edit-only">Copy editable link</button>
       <button id="shareBtn" class="btn btn-primary edit-only">Copy read-only link</button>
       <span id="info">Loading map…</span>
     </div>
@@ -493,6 +494,22 @@ function getShareUrl() {
   const u = new URL(window.location.href.split('?')[0]);
   u.searchParams.set('view','1'); u.searchParams.set('s', encodeState());
   return u.toString();
+}
+function getEditableUrl() {
+  const u = new URL(window.location.href.split('?')[0]);
+  u.searchParams.set('s', encodeState());
+  return u.toString();
+}
+
+function copyMapLink(button, url, defaultText) {
+  navigator.clipboard.writeText(url).then(() => {
+    button.textContent = 'Copied';
+    button.classList.add('copied');
+    setTimeout(() => {
+      button.textContent = defaultText;
+      button.classList.remove('copied');
+    }, 2500);
+  }).catch(() => prompt('Copy this link:', url));
 }
 
 // ── Map label updates ─────────────────────────────────────────────
@@ -960,13 +977,13 @@ async function init() {
     Object.keys(FACTIONS).forEach(k => delete FACTIONS[k]);
     refreshSidebar(); refreshFactionLegend();
   });
+  document.getElementById('editableLinkBtn').addEventListener('click', () => {
+    const btn = document.getElementById('editableLinkBtn');
+    copyMapLink(btn, getEditableUrl(), 'Copy editable link');
+  });
   document.getElementById('shareBtn').addEventListener('click', () => {
-    const url = getShareUrl();
-    navigator.clipboard.writeText(url).then(() => {
-      const btn = document.getElementById('shareBtn');
-      btn.textContent='Copied'; btn.classList.add('copied');
-      setTimeout(()=>{ btn.textContent='Copy read-only link'; btn.classList.remove('copied'); }, 2500);
-    }).catch(() => prompt('Share link:', url));
+    const btn = document.getElementById('shareBtn');
+    copyMapLink(btn, getShareUrl(), 'Copy read-only link');
   });
 }
 
