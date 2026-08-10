@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Map Scriptorium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#30271e; --parchment:#f3e8cf; --gold:#c59a4a; --gold-dark:#876025; --leather:#282119; --muted:#b8aa92; --danger:#d68c82; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; }
+  body { min-height:100vh; background:
+    radial-gradient(circle at 12% 0,rgba(197,154,74,.18),transparent 34%),
+    radial-gradient(circle at 88% 95%,rgba(115,79,37,.19),transparent 38%),
+    #17130f; color:#f5ead4; font-family:Inter,ui-sans-serif,sans-serif; }
+  button,input { font:inherit; }
+  button { cursor:pointer; }
+  button:disabled { cursor:not-allowed; opacity:.48; }
+  #shell { min-height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:18px; padding:15px 22px; border-bottom:1px solid rgba(197,154,74,.28); background:linear-gradient(135deg,#302820,#201a15); box-shadow:0 9px 28px rgba(0,0,0,.28); z-index:2; }
+  .brand { margin-right:auto; min-width:0; }
+  .brand h1 { margin:0; color:#f6e5c2; font-family:Cinzel,Georgia,serif; font-size:19px; letter-spacing:.035em; }
+  .brand p { margin:3px 0 0; color:var(--muted); font-size:11px; }
+  #session { color:#d8c9ad; font-size:11px; }
+  .actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .btn { min-height:38px; padding:0 14px; border:1px solid rgba(197,154,74,.38); border-radius:9px; background:rgba(255,255,255,.055); color:#eadfc9; font-size:12px; font-weight:700; }
+  .btn:hover:not(:disabled) { background:rgba(255,255,255,.12); }
+  .btn-primary { border-color:#cda456; background:linear-gradient(#b88a3d,#8d6427); color:#fff8e8; }
+  .btn-quiet { color:#cbbda5; }
+  #statusbar { min-height:38px; display:flex; align-items:center; gap:10px; padding:8px 22px; border-bottom:1px solid rgba(197,154,74,.14); background:#211b16; color:#c6b89f; font-size:12px; }
+  #statusbar.error { color:var(--danger); }
+  #status-dot { width:7px; height:7px; border-radius:50%; background:#aa8444; box-shadow:0 0 0 3px rgba(197,154,74,.1); }
+  #statusbar.error #status-dot { background:#c96e63; }
+  #workspace { position:relative; flex:1; min-height:720px; background:#ddd4c3; }
+  #mapFrame { display:block; width:100%; height:calc(100vh - 126px); min-height:720px; border:0; background:#ddd4c3; }
+  #workspace.locked #mapFrame { pointer-events:none; filter:brightness(.72); }
+  #gate { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(25,20,15,.72); backdrop-filter:blur(4px); z-index:3; }
+  #gate[hidden] { display:none; }
+  .gate-card { width:min(430px,100%); padding:28px; border:1px solid rgba(197,154,74,.42); border-radius:16px; background:
+    linear-gradient(rgba(247,240,223,.97),rgba(233,220,193,.97)); color:var(--ink); box-shadow:0 24px 70px rgba(0,0,0,.42); }
+  .gate-card .kicker { margin:0 0 6px; color:var(--gold-dark); font-family:Cinzel,Georgia,serif; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+  .gate-card h2 { margin:0; font-family:Cinzel,Georgia,serif; font-size:22px; }
+  .gate-card p { margin:8px 0 18px; color:#746857; font-size:12px; line-height:1.55; }
+  .gate-card label { display:block; margin-bottom:6px; font-size:11px; font-weight:750; }
+  .gate-card input { width:100%; height:43px; padding:0 12px; border:1px solid rgba(93,67,37,.28); border-radius:8px; background:rgba(255,255,255,.64); color:var(--ink); }
+  .gate-card .btn { width:100%; margin-top:12px; color:#fff9e9; }
+  #authMessage { min-height:18px; margin:12px 0 0; color:#716553; font-size:11px; }
+  #authMessage.error { color:#913f37; font-weight:700; }
+  @media (max-width:800px) {
+    header { align-items:flex-start; flex-wrap:wrap; padding:13px; }
+    .brand { flex-basis:100%; }
+    #session { display:none; }
+    .actions { width:100%; }
+    .actions .btn { flex:1; }
+    #statusbar { padding:8px 13px; }
+    #mapFrame { height:calc(100vh - 180px); }
+  }
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <div class="brand">
+      <h1>World Map Scriptorium</h1>
+      <p>Private draft chamber for the realm cartographer</p>
+    </div>
+    <span id="session"></span>
+    <div class="actions">
+      <button id="saveBtn" class="btn" disabled>Save draft</button>
+      <button id="publishBtn" class="btn btn-primary" disabled>Publish</button>
+      <button id="copyBtn" class="btn" disabled>Copy public link</button>
+      <button id="signOutBtn" class="btn btn-quiet" disabled>Sign out</button>
+    </div>
+  </header>
+  <div id="statusbar"><span id="status-dot"></span><span id="status">Sign in to edit the private draft.</span></div>
+  <main id="workspace" class="locked">
+    <iframe id="mapFrame" src="map.html?admin=1" title="World map editor"></iframe>
+    <div id="gate">
+      <form id="loginForm" class="gate-card">
+        <p class="kicker">Restricted archive</p>
+        <h2>Cartographer sign in</h2>
+        <p>A secure magic link will be sent to the authorized administrator email.</p>
+        <label for="email">Email address</label>
+        <input id="email" type="email" value="tgolovanov@gmail.com" autocomplete="email" required>
+        <button id="loginBtn" class="btn btn-primary" type="submit">Send magic link</button>
+        <p id="authMessage" aria-live="polite"></p>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://cnhwguufmgwoynezmxcv.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_OXlvjNM3zTfBA7A6Td7e-A_AUZqcGJP';
+const ADMIN_EMAIL = 'tgolovanov@gmail.com';
+const MAP_SLUG = 'dnd-map';
+const DEFAULT_NAME = 'D&D World Map';
+
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const frame = document.getElementById('mapFrame');
+const workspace = document.getElementById('workspace');
+const gate = document.getElementById('gate');
+const statusbar = document.getElementById('statusbar');
+const statusEl = document.getElementById('status');
+const authMessage = document.getElementById('authMessage');
+const emailInput = document.getElementById('email');
+const buttons = ['saveBtn', 'publishBtn', 'copyBtn', 'signOutBtn']
+  .map(id => document.getElementById(id));
+
+let currentUser = null;
+let mapRow = null;
+let mapName = DEFAULT_NAME;
+let lastSavedState = '';
+let autosaveTimer = null;
+let initializingUserId = null;
+let rejectedEmail = '';
+let saveInFlight = null;
+
+function setStatus(message, error = false) {
+  statusEl.textContent = message;
+  statusbar.classList.toggle('error', error);
+}
+
+function setAuthMessage(message, error = false) {
+  authMessage.textContent = message;
+  authMessage.classList.toggle('error', error);
+}
+
+function setEditorEnabled(enabled) {
+  workspace.classList.toggle('locked', !enabled);
+  buttons.forEach(button => { button.disabled = !enabled; });
+}
+
+function mapEditor() {
+  try { return frame.contentWindow.MapEditor; } catch { return null; }
+}
+
+const editorReady = new Promise(resolve => {
+  let settled = false;
+  let poll;
+  function check() {
+    const editor = mapEditor();
+    if (editor?.isReady() && !settled) {
+      settled = true;
+      clearInterval(poll);
+      resolve(editor);
+    }
+  }
+  window.addEventListener('message', event => {
+    if (event.origin === window.location.origin &&
+        event.source === frame.contentWindow &&
+        event.data?.type === 'map-editor-ready') check();
+  });
+  frame.addEventListener('load', check);
+  poll = setInterval(check, 250);
+});
+
+function sameSiteUrl(file) {
+  return new URL(file, window.location.href).href;
+}
+
+async function fetchMapRow() {
+  const { data, error } = await client
+    .from('maps')
+    .select('id,slug,name,draft_state,updated_at')
+    .eq('slug', MAP_SLUG)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function updateDraftRow(state) {
+  const { data, error } = await client
+    .from('maps')
+    .update({
+      name: mapName,
+      draft_state: state,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', mapRow.id)
+    .select('id,slug,name,draft_state,updated_at')
+    .single();
+  if (error) throw error;
+  mapRow = data;
+}
+
+async function createOrRefetchMap(state, user) {
+  const { data, error } = await client
+    .from('maps')
+    .insert({
+      slug: MAP_SLUG,
+      name: DEFAULT_NAME,
+      owner_id: user.id,
+      owner_email: user.email,
+      draft_state: state,
+    })
+    .select('id,slug,name,draft_state,updated_at')
+    .single();
+  if (!error) return data;
+  if (error.code === '23505') {
+    const existing = await fetchMapRow();
+    if (existing) return existing;
+  }
+  throw error;
+}
+
+async function prepareDraft(user) {
+  const editor = await editorReady;
+  setStatus('Opening private draft…');
+  let row = await fetchMapRow();
+
+  if (!row) {
+    row = await createOrRefetchMap(editor.getState(), user);
+  }
+
+  mapRow = row;
+  mapName = row.name || DEFAULT_NAME;
+  if (!editor.loadState(row.draft_state)) {
+    const modernState = editor.getState();
+    await updateDraftRow(modernState);
+    setStatus('Legacy draft converted to the modern map format.');
+  } else {
+    setStatus('Draft loaded. Changes autosave every two seconds.');
+  }
+  lastSavedState = JSON.stringify(editor.getState());
+}
+
+async function saveDraft(options = {}) {
+  if (!currentUser || !mapRow) return false;
+  if (saveInFlight) {
+    await saveInFlight;
+    return saveDraft(options);
+  }
+  const editor = await editorReady;
+  const state = editor.getState();
+  const serialized = JSON.stringify(state);
+  if (!options.force && serialized === lastSavedState) return true;
+  if (!options.quiet) setStatus('Saving draft…');
+  saveInFlight = updateDraftRow(state);
+  try {
+    await saveInFlight;
+  } catch (error) {
+    setStatus(`Draft save failed: ${error.message}`, true);
+    return false;
+  } finally {
+    saveInFlight = null;
+  }
+  lastSavedState = serialized;
+  if (!options.quiet) setStatus('Draft saved.');
+  return true;
+}
+
+function startAutosave() {
+  clearInterval(autosaveTimer);
+  autosaveTimer = setInterval(async () => {
+    if (!currentUser || !mapRow) return;
+    const editor = mapEditor();
+    if (!editor?.isReady()) return;
+    if (JSON.stringify(editor.getState()) !== lastSavedState) {
+      await saveDraft({ quiet: true });
+      if (JSON.stringify(editor.getState()) === lastSavedState) {
+        setStatus('Draft autosaved.');
+      }
+    }
+  }, 2000);
+}
+
+async function authorizeSession(session) {
+  const user = session?.user;
+  if (!user) {
+    currentUser = null;
+    mapRow = null;
+    initializingUserId = null;
+    clearInterval(autosaveTimer);
+    setEditorEnabled(false);
+    gate.hidden = false;
+    document.getElementById('session').textContent = '';
+    if (rejectedEmail) {
+      setAuthMessage(`Access denied for ${rejectedEmail}. Only ${ADMIN_EMAIL} is authorized.`, true);
+      setStatus('Unauthorized email. Access was rejected.', true);
+    } else {
+      setStatus('Sign in to edit the private draft.');
+    }
+    return;
+  }
+
+  if ((user.email || '').toLowerCase() !== ADMIN_EMAIL) {
+    rejectedEmail = user.email || 'this account';
+    setAuthMessage(`Access denied. Only ${ADMIN_EMAIL} is authorized.`, true);
+    setStatus('Unauthorized email. Signing out…', true);
+    await client.auth.signOut();
+    return;
+  }
+  if (initializingUserId === user.id) return;
+  rejectedEmail = '';
+  initializingUserId = user.id;
+  currentUser = user;
+  gate.hidden = true;
+  document.getElementById('session').textContent = user.email;
+  setStatus('Waiting for the map editor…');
+  try {
+    await prepareDraft(user);
+    setEditorEnabled(true);
+    startAutosave();
+  } catch (error) {
+    initializingUserId = null;
+    setEditorEnabled(false);
+    document.getElementById('signOutBtn').disabled = false;
+    gate.hidden = false;
+    setAuthMessage(`Could not open the draft: ${error.message}`, true);
+    setStatus(`Draft initialization failed: ${error.message}`, true);
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const email = emailInput.value.trim().toLowerCase();
+  if (email !== ADMIN_EMAIL) {
+    setAuthMessage(`This map is restricted to ${ADMIN_EMAIL}.`, true);
+    return;
+  }
+  const button = document.getElementById('loginBtn');
+  button.disabled = true;
+  setAuthMessage('Sending secure sign-in link…');
+  const { error } = await client.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: sameSiteUrl('admin.html') },
+  });
+  button.disabled = false;
+  if (error) setAuthMessage(`Could not send magic link: ${error.message}`, true);
+  else setAuthMessage('Magic link sent. Check your inbox.');
+});
+
+document.getElementById('saveBtn').addEventListener('click', () => saveDraft({ force: true }));
+
+document.getElementById('publishBtn').addEventListener('click', async () => {
+  const button = document.getElementById('publishBtn');
+  button.disabled = true;
+  if (!await saveDraft({ force: true })) {
+    button.disabled = false;
+    return;
+  }
+  setStatus('Publishing map…');
+  const editor = await editorReady;
+  const { error } = await client.from('published_maps').upsert({
+    slug: MAP_SLUG,
+    name: mapName,
+    state: editor.getState(),
+    published_at: new Date().toISOString(),
+  }, { onConflict: 'slug' });
+  button.disabled = false;
+  if (error) setStatus(`Publish failed: ${error.message}`, true);
+  else setStatus('Map published to the public link.');
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const url = sameSiteUrl(`map.html?map=${encodeURIComponent(MAP_SLUG)}`);
+  try {
+    await navigator.clipboard.writeText(url);
+    setStatus('Public link copied.');
+  } catch {
+    window.prompt('Copy the public map link:', url);
+  }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', async () => {
+  await saveDraft();
+  await client.auth.signOut();
+});
+
+client.auth.onAuthStateChange((_event, session) => {
+  setTimeout(() => authorizeSession(session), 0);
+});
+
+client.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    setAuthMessage(`Could not restore session: ${error.message}`, true);
+    setStatus('Authentication failed.', true);
+  } else {
+    authorizeSession(data.session);
+  }
+});
+</script>
+</body>
+</html>

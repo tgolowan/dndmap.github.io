@@ -42,6 +42,7 @@
   .map-card-head h2 { margin:0; font-family:Cinzel,Georgia,serif; font-size:13px; letter-spacing:.04em; }
   .map-card-actions { display:flex; align-items:center; gap:10px; }
   .map-card-head span { color:var(--muted); font-size:10px; }
+  #map-hint.load-error { display:inline !important; color:var(--danger); font-weight:700; }
   #fullscreenBtn { min-height:30px; padding:0 10px; border-color:rgba(82,61,36,.18); background:rgba(255,255,255,.3); color:#695b49; font-size:10px; }
   #map-stage { display:flex; justify-content:center; min-height:620px; padding:14px; position:relative; overflow:hidden; background:
     radial-gradient(circle at 20% 30%,rgba(120,85,42,.08),transparent 28%),
@@ -97,6 +98,9 @@
   .view-mode #main { grid-template-columns:1fr; }
   .view-mode #sidebars,.view-mode .edit-only { display:none !important; }
   .view-mode #viewBanner { display:inline-flex; }
+  .admin-mode #toolbar { display:none; }
+  .admin-mode #app { padding-top:0; }
+  .admin-mode #main { margin-top:0; }
   #map-card:fullscreen { display:flex; flex-direction:column; padding:18px; border-radius:0; background:#e4dac7; }
   #map-card:fullscreen #map-stage { flex:1; min-height:0; }
   #map-card:fullscreen #map-stage svg { width:auto; height:calc(100vh - 90px); max-height:none; }
@@ -458,10 +462,17 @@ const picker    = document.getElementById('colorPicker');
 const infoEl    = document.getElementById('info');
 const sidebar   = document.getElementById('sidebar');
 const params    = new URLSearchParams(window.location.search);
-const VIEW_MODE = params.get('view') === '1';
+const ADMIN_MODE = params.get('admin') === '1';
+const PUBLISHED_SLUG = params.get('map');
+const VIEW_MODE = !ADMIN_MODE && (params.get('view') === '1' || !!PUBLISHED_SLUG);
+const SUPABASE_URL = 'https://cnhwguufmgwoynezmxcv.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_OXlvjNM3zTfBA7A6Td7e-A_AUZqcGJP';
 let selected    = null;
 let globalSvg   = null;
 let selectionOverlay = null;
+let editorReady = false;
+
+if (ADMIN_MODE) document.body.classList.add('admin-mode');
 
 // ── Helpers ──────────────────────────────────────────────────────
 function factionName(color) { return color ? (FACTIONS[color] || '') : ''; }
@@ -489,6 +500,97 @@ function decodeState(s) {
   } catch {
     try { return JSON.parse(decodeURIComponent(escape(atob(s)))); } catch { return null; }
   }
+}
+
+function isValidV2State(state) {
+  if (!state || state.v !== 2 || !Array.isArray(state.r) ||
+      !Array.isArray(state.c) || !Array.isArray(state.l) ||
+      state.l.length < 2 || !state.f || typeof state.f !== 'object' ||
+      Array.isArray(state.f)) return false;
+  const validColor = color => color === '' || /^#[0-9a-f]{6}$/i.test(color);
+  return state.r.length <= REGIONS.length &&
+    state.c.length <= CITIES.length &&
+    state.r.every(entry => Array.isArray(entry) && entry.length >= 2 &&
+      typeof entry[0] === 'string' && validColor(entry[0]) &&
+      typeof entry[1] === 'string') &&
+    state.c.every(name => typeof name === 'string') &&
+    state.l.slice(0, 2).every(value => value === 0 || value === 1 ||
+      typeof value === 'boolean') &&
+    Object.entries(state.f).every(([color, name]) =>
+      /^#[0-9a-f]{6}$/i.test(color) && typeof name === 'string');
+}
+
+function getEditorState() {
+  return {
+    v: 2,
+    r: REGIONS.map(r => [r.color || '', r.regionName || '']),
+    f: { ...FACTIONS },
+    c: CITIES.map(c => c.name || ''),
+    l: [showRegionLabels ? 1 : 0, showCityLabels ? 1 : 0],
+  };
+}
+
+function applyEditorState(state) {
+  if (!editorReady || !isValidV2State(state)) return false;
+
+  Object.keys(FACTIONS).forEach(key => delete FACTIONS[key]);
+  REGIONS.forEach(r => {
+    r.color = null;
+    r.regionName = '';
+    r.floodEl.setAttribute('flood-color', 'transparent');
+    r.floodEl.setAttribute('flood-opacity', '0');
+  });
+  CITIES.forEach(city => { city.name = ''; });
+
+  Object.entries(state.f).forEach(([color, name]) => {
+    FACTIONS[color.toLowerCase()] = name;
+  });
+  state.r.forEach(([color, regionName], index) => {
+    const region = REGIONS[index];
+    region.regionName = regionName;
+    if (color) {
+      region.color = color.toLowerCase();
+      region.floodEl.setAttribute('flood-color',
+        `rgb(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)})`);
+      region.floodEl.setAttribute('flood-opacity', '0.44');
+    }
+  });
+  state.c.forEach((name, index) => { CITIES[index].name = name; });
+  showRegionLabels = state.l[0] !== 0 && state.l[0] !== false;
+  showCityLabels = state.l[1] !== 0 && state.l[1] !== false;
+  document.getElementById('regionLabelsCheck').checked = showRegionLabels;
+  document.getElementById('cityLabelsCheck').checked = showCityLabels;
+  REGIONS.forEach(updateLabels);
+  refreshAllCityLabels();
+  refreshRegionLabelVisibility();
+  refreshSidebar();
+  refreshFactionLegend();
+  return true;
+}
+
+window.MapEditor = {
+  getState: () => getEditorState(),
+  loadState: state => applyEditorState(state),
+  isReady: () => editorReady,
+};
+
+async function fetchPublishedMap(slug) {
+  const endpoint = new URL('/rest/v1/published_maps', SUPABASE_URL);
+  endpoint.searchParams.set('select', 'name,state');
+  endpoint.searchParams.set('slug', `eq.${slug}`);
+  endpoint.searchParams.set('limit', '1');
+  const response = await fetch(endpoint, {
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw new Error(`Published map request failed (${response.status})`);
+  const rows = await response.json();
+  if (!rows.length) throw new Error(`Published map "${slug}" was not found`);
+  if (!isValidV2State(rows[0].state)) throw new Error('Published map has an incompatible state format');
+  return rows[0];
 }
 function getShareUrl() {
   const u = new URL(window.location.href.split('?')[0]);
@@ -885,40 +987,30 @@ async function init() {
   document.getElementById('loading').remove();
   document.getElementById('map-stage').appendChild(svg);
 
-  // Load state from URL
+  editorReady = true;
+
+  // Load modern compact state from the URL. Legacy React WorldState is ignored.
   const s = params.get('s');
   if (s) {
     const data = decodeState(s);
-    if (data) {
-      const factionData = data.v === 2 ? data.f : data.factions;
-      const regionData = data.v === 2 ? data.r : data.regions;
-      const cityData = data.v === 2 ? data.c : data.cities;
-      if (factionData) Object.assign(FACTIONS, factionData);
-      if (data.v === 2 && Array.isArray(data.l)) {
-        showRegionLabels = data.l[0] !== 0;
-        showCityLabels = data.l[1] !== 0;
-      } else {
-        if (typeof data.regionLabels === 'boolean') showRegionLabels = data.regionLabels;
-        if (typeof data.cityLabels === 'boolean') showCityLabels = data.cityLabels;
-      }
-      document.getElementById('regionLabelsCheck').checked = showRegionLabels;
-      document.getElementById('cityLabelsCheck').checked = showCityLabels;
-      if (cityData) cityData.forEach((entry, idx) => {
-        if (!CITIES[idx]) return;
-        CITIES[idx].name = (Array.isArray(entry) ? entry[0] : entry) || '';
-        updateCityGraphics(CITIES[idx]);
-      });
-      if (regionData) regionData.forEach(([color, regionName], idx) => {
-        if (!REGIONS[idx]) return;
-        REGIONS[idx].regionName = regionName || '';
-        if (color) {
-          REGIONS[idx].color = color;
-          const r = REGIONS[idx];
-          r.floodEl.setAttribute('flood-color', `rgb(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)})`);
-          r.floodEl.setAttribute('flood-opacity','0.44');
-        }
-        updateLabels(REGIONS[idx]);
-      });
+    applyEditorState(data);
+  }
+
+  let publicLoadError = '';
+  if (PUBLISHED_SLUG) {
+    infoEl.textContent = 'Loading published map…';
+    try {
+      const published = await fetchPublishedMap(PUBLISHED_SLUG);
+      applyEditorState(published.state);
+      document.querySelector('.map-card-head h2').textContent = published.name || 'Realm Map';
+      document.title = published.name || 'Interactive Region Map';
+    } catch (error) {
+      publicLoadError = `Error: ${error.message}`;
+      infoEl.textContent = publicLoadError;
+      const hint = document.getElementById('map-hint');
+      hint.textContent = publicLoadError;
+      hint.classList.add('load-error');
+      console.error(error);
     }
   }
 
@@ -952,9 +1044,12 @@ async function init() {
 
   if (VIEW_MODE) {
     document.body.classList.add('view-mode');
-    infoEl.textContent = 'Shared map';
+    if (!publicLoadError) infoEl.textContent = 'Shared map';
     document.getElementById('brand-subtitle').textContent = 'A shared record of realms, cities, and faction control.';
-    document.getElementById('map-hint').textContent = 'Shared territory overview';
+    if (!publicLoadError) document.getElementById('map-hint').textContent = 'Shared territory overview';
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'map-editor-ready' }, window.location.origin);
+    }
     return;
   }
 
@@ -985,9 +1080,17 @@ async function init() {
     const btn = document.getElementById('shareBtn');
     copyMapLink(btn, getShareUrl(), 'Copy read-only link');
   });
+
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'map-editor-ready' }, window.location.origin);
+  }
 }
 
-init().catch(e => { infoEl.textContent='Error: '+e.message; console.error(e); });
+init().catch(e => {
+  editorReady = false;
+  infoEl.textContent='Error: '+e.message;
+  console.error(e);
+});
 </script>
 </body>
 </html>
